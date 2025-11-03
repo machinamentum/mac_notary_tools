@@ -1,0 +1,71 @@
+
+// https://developer.apple.com/documentation/security/customizing-the-notarization-workflow
+// https://developer.apple.com/documentation/security/resolving-common-notarization-issues
+// https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac
+
+// You could use a REST API to interact with notary service without using macOS, but since the app bundle
+// still needs to be signed, you might as well use notarytool to submit the notarization in one go on the
+// same mac machine that signed it.
+// https://developer.apple.com/documentation/NotaryAPI/submitting-software-for-notarization-over-the-web
+
+// You can create a keychain password with the command
+/*
+xcrun notarytool store-credentials "notarytool-password"
+               --apple-id "<AppleID>"
+               --team-id <DeveloperTeamID>
+               --password <secret_2FA_password>
+*/
+// --apple-id your email
+
+// --team-id This is somewhere in your developer account I believe.
+// It may also be the TeamIdentidier field printed by the command
+// `codesign -dvv <bundle>` after bundle is signed by a valid codesigning identity
+
+// --password is a 2FA key generated from creating an app-specific password
+// https://support.apple.com/en-us/102654
+
+const char *KEYCHAIN_PROFILE = "notarytool-password";
+const char *LOG_NAME = "developer_log.json";
+
+int main(int argc, char *argv[]) {
+
+    if (argc < 2) {
+        printf("Usage: %s <bundle>.app\n", argv[0]);
+        return 0;
+    }
+
+    const char *artifact = argv[1];
+
+    struct JBRunResult res = jb_run_get_output((char **)JB_STRING_ARRAY(
+        "xcrun", "notarytool", "sumbit", artifact, "--keychain-profile", KEYCHAIN_PROFILE, "--wait"), __FILE__, __LINE__ );
+
+    jb_log_print("%s", res.output);
+
+    char *id = strstr(res.output, "id:");
+
+    if (id) {
+        char *end = strchr(id, '\n');
+        if (!end)
+            end = id + strlen(id);
+
+        id += 4; // skip 'id: '
+
+        id = jb_format_string("%.*s", end-id, id);
+
+        JB_LOG("Found ID: %s\n", id);
+        JB_LOG("Downloading log\n");
+
+        JB_RUN(xcrun notarytool log, id, "--keychain-profile", KEYCHAIN_PROFILE,
+            LOG_NAME);
+    }
+
+    if (strstr(res.output, "Accepted")) {
+        JB_LOG("Status Accepted, stapling...\n");
+        JB_RUN(xcrun stapler staple, artifact);
+    }
+    else {
+        JB_LOG("Status Rejected, check %s for errors\n", LOG_NAME);
+    }
+
+    return 0;
+}

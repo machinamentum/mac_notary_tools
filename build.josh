@@ -1,0 +1,10 @@
+#ifndef JOSH_BUILD_H
+#define JOSH_BUILD_IMPL
+#include "josh_build.h"
+#endif
+
+int main(int argc, char const *argv[]) {
+    JOSH_BUILD("tools/check.josh", "check");
+    JOSH_BUILD("tools/notarize.josh", "notarize");
+    return 0;
+}
