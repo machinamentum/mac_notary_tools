@@ -34,7 +34,11 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    const char *artifact = argv[1];
+    const char *bundle = argv[1];
+    const char *artifact = jb_copy_string(bundle);
+    memcpy((char *)jb_extension(artifact), "zip", 3);
+
+    JB_RUN(/usr/bin/ditto -c -k --keepParent, bundle, artifact);
 
     struct JBRunResult res = jb_run_get_output((char **)JB_STRING_ARRAY(
         "xcrun", "notarytool", "sumbit", artifact, "--keychain-profile", KEYCHAIN_PROFILE, "--wait"), __FILE__, __LINE__ );
@@ -61,7 +65,7 @@ int main(int argc, char *argv[]) {
 
     if (strstr(res.output, "Accepted")) {
         JB_LOG("Status Accepted, stapling...\n");
-        JB_RUN(xcrun stapler staple, artifact);
+        JB_RUN(xcrun stapler staple, bundle);
     }
     else {
         JB_LOG("Status Rejected, check %s for errors\n", LOG_NAME);
